@@ -1,0 +1,19 @@
+name: Publish
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - closed
+
+jobs:
+  publish:
+    if: |
+      github.event.pull_request.merged == false &&
+      startsWith(github.head_ref, 'releases/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: statsig-io/statsig-publish-sdk-action@v1.2
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
