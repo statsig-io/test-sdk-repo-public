@@ -1,19 +1,11 @@
 name: Publish
 
-on:
-  pull_request:
-    branches:
-      - main
-    types:
-      - closed
+on: [push, pull_request]
 
 jobs:
   publish:
-    if: |
-      github.event.pull_request.merged == true &&
-      startsWith(github.head_ref, 'releases/')
     runs-on: ubuntu-latest
     steps:
-      - uses: statsig-io/statsig-publish-sdk-action@v1.2
+      - uses: statsig-io/statsig-publish-sdk-action@main
         with:
           gh-token: ${{ secrets.KONG_FINE_GRAINED_REPO_PAT }}
