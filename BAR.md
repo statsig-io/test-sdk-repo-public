@@ -3,4 +3,5 @@
 - Bar
 
 ## BAR
-[] Bar
+- [ ] Bar
+- [x] Bar
