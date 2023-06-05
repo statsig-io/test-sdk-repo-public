@@ -1,2 +1,6 @@
-##BAR
-##BAR
+## BAR
+- Bar
+- Bar
+
+## BAR
+[] Bar
