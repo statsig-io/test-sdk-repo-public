@@ -8,7 +8,7 @@ on:
 
 jobs:
   run:
-    if: startsWith(github.head_ref, 'releases/') || endsWith(github.event, 'released')
+    if: startsWith(github.head_ref, 'releases/') || github.event_name == 'release'
     runs-on: ubuntu-latest
     steps:
       - uses: statsig-io/statsig-publish-sdk-action@main
