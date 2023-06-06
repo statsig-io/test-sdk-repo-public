@@ -3,6 +3,8 @@ name: Release Bot
 on:
   pull_request:
     types: [opened, reopened, closed]
+  release:
+    types: [released, prereleased]
 
 jobs:
   run:
