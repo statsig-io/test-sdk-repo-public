@@ -3,7 +3,7 @@ name: Release Bot
 on:
   pull_request:
     types: [opened, reopened, closed]
-    branches: [releases/**]
+    branches: ["releases/**"]
 
 jobs:
   run:
