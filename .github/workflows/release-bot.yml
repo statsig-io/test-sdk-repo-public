@@ -1,13 +1,14 @@
 name: Release Bot
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, reopened, closed]
     branches:
       - "releases/**"
 
 jobs:
   run:
+    if: startsWith(github.head_ref, 'releases/')
     runs-on: ubuntu-latest
     steps:
       - uses: statsig-io/statsig-publish-sdk-action@main
