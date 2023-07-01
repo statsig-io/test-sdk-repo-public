@@ -5,7 +5,7 @@ on:
     types: [opened, reopened, closed]
 
   release:
-    types: [released, prereleased]
+    types: [released, prereleased, edited]
 
 jobs:
   run:
