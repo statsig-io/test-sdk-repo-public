@@ -3,6 +3,7 @@ name: Release Bot
 on:
   pull_request:
     types: [opened, reopened, closed]
+    branches: [main, stable]
   release:
     types: [released, prereleased]
 
