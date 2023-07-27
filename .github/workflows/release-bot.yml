@@ -3,7 +3,7 @@ name: Release Bot
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0/2 * * * *"
+    - cron: "*/2 * * * *"
   pull_request:
     branches: [main]
   push:
