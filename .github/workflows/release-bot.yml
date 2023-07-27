@@ -1,17 +1,15 @@
 name: Release Bot
 
 on:
-  workflow_dispatch:
-  schedule:
-    - cron: "*/2 * * * *"
   pull_request:
-    branches: [main]
-  push:
-    branches: [main]
+    types: [opened, reopened, closed]
+    branches: [main, stable]
+  release:
+    types: [released, prereleased]
 
 jobs:
   echo:
-    if: github.event_name != 'schedule' || github.event.repository.private
+    if: github.event_name == 'pull_request' || github.event.repository.private
     runs-on: ubuntu-latest
     steps:
       - name: "Echo"
