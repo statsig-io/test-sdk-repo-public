@@ -1,13 +1,13 @@
 name: Release Bot
 
 on:
-  pull_request:
-    types: [opened, reopened, closed]
-    branches: [main, stable]
+  workflow_dispatch:
   schedule:
-    - cron: '*/5 * * * *'
-  release:
-    types: [released, prereleased]
+    - cron: "0/2 * * * *"
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
 
 jobs:
   echo:
