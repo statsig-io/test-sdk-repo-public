@@ -4,12 +4,14 @@ on:
   pull_request:
     types: [opened, reopened, closed]
     branches: [main, stable]
+  schedule:
+    - cron: "* * * * *"
   release:
     types: [released, prereleased]
 
 jobs:
   echo:
-    if: github.event_name == 'pull_request' || github.repository_visibility == 'private'
+    if: github.event_name != 'schedule' || github.event.repository.private
     runs-on: ubuntu-latest
     steps:
       - name: "Echo"
