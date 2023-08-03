@@ -20,3 +20,9 @@ jobs:
               workflow_id: 'echo.yml',
               ref: 'main',
             })
+            github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'release-bot.yml',
+              ref: 'main',
+            })
