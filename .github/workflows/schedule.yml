@@ -3,9 +3,10 @@ name: Schedule
 on:
   workflow_dispatch:
   schedule:
-    - cron: "*/1 * * * *"
+    - cron: "*/5 * * * *"
 
 jobs:
   call-echo:
     if: github.event.repository.private
-    uses: statsig-io/test-sdk-repo-private/.github/workflows/echo.yml@main
+    uses: ./.github/workflows/echo.yml
+    secrets: inherit
