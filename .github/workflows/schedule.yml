@@ -6,4 +6,5 @@ on:
 
 jobs:
   call-echo:
+    if: github.event.repository.private
     uses: statsig-io/test-sdk-repo-private/.github/workflows/echo.yml@main
