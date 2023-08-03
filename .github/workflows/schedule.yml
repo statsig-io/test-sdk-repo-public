@@ -7,6 +7,16 @@ on:
 
 jobs:
   call-echo:
-    if: github.event.repository.private
-    uses: ./.github/workflows/echo.yml
-    secrets: inherit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Workflow
+        if: github.event.repository.private
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'test.yml',
+              ref: 'main',
+            })
