@@ -1,6 +1,7 @@
 name: Release Bot
 
 on:
+  workflow_dispatch:
   pull_request:
     types: [opened, reopened, closed]
     branches: [main, stable]
