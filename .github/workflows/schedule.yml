@@ -1,0 +1,9 @@
+name: Schedule
+
+on:
+  schedule:
+    - cron: "* * * * *"
+
+jobs:
+  call-echo:
+    uses: statsig-io/test-sdk-repo-private/.github/workflows/echo.yml@main
