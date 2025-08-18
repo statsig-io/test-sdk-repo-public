@@ -1,6 +1,6 @@
 {
   "name": "test-sdk-repo-public",
-  "version": "1.11.2",
+  "version": "v1.11.2-rc.2508181844",
   "description": "Times changed: 12",
   "main": "index.js",
   "scripts": {
