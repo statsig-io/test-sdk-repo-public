@@ -114,11 +114,44 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
 
-      - name: Merge stable back to main
+      - name: Back-merge single commit (cherry-pick) via PR
+        id: backmerge_one
         shell: bash
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}  # gh CLI 用
         run: |
           set -euo pipefail
-          git fetch origin
-          git checkout -B main origin/main
-          git merge origin/stable -m "Merge stable into main after release ${{ steps.vars.outputs.tag }}"
-          git push origin main
+
+          TAG="${{ steps.vars.outputs.tag }}"
+          SHA="${{ steps.vars.outputs.merge_sha }}"
+
+          git fetch origin --prune
+
+          BR="backmerge/one-$TAG"
+          git checkout -B "$BR" origin/main
+
+          PARENTS="$(git show -s --format=%P "$SHA" || true)"
+          if [[ "$PARENTS" == *" "* ]]; then
+            echo "Cherry-picking a merge commit: $SHA (using -m 1)"
+            git cherry-pick -m 1 "$SHA" || (echo "::error::Cherry-pick conflict. Resolve on branch $BR." && exit 1)
+          else
+            echo "Cherry-picking a normal commit: $SHA"
+            git cherry-pick "$SHA" || (echo "::error::Cherry-pick conflict. Resolve on branch $BR." && exit 1)
+          fi
+
+          git config user.name  "statsig-kong[bot]"
+          git config user.email "statsig-kong[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+          git push -u origin "$BR"
+
+          PR_URL="$(gh pr view "$BR" --json url --jq .url 2>/dev/null || true)"
+          if [ -z "$PR_URL" ]; then
+            PR_URL="$(gh pr create \
+              --base main \
+              --head "$BR" \
+              --title "Back-merge single commit $SHA -> main (after ${TAG})" \
+              --body  "Automated cherry-pick of $SHA from stable after ${TAG}.")"
+          fi
+          echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
+
+          gh pr merge "$BR" --merge --auto || echo "Auto-merge pending (checks/approvals needed or not permitted)."
