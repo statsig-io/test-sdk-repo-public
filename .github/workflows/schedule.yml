@@ -1,0 +1,25 @@
+name: Schedule
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/30 * * * 1-5"
+
+jobs:
+  call-echo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Workflow
+        if: github.event.repository.private
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const args = {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: 'main',
+            }
+            github.rest.actions.createWorkflowDispatch({
+              ...args,
+              workflow_id: 'release-bot.yml'
+            })

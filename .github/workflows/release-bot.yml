@@ -1,6 +1,7 @@
 name: Release Bot
 
 on:
+  workflow_dispatch:
   pull_request:
     types: [opened, reopened, closed]
     branches: [main, stable]
@@ -8,6 +9,13 @@ on:
     types: [released, prereleased]
 
 jobs:
+  echo:
+    if: github.event_name == 'pull_request' || github.event.repository.private
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Echo"
+        run: echo "Foo"
+
   run:
     if: startsWith(github.head_ref, 'releases/') || github.event_name == 'release'
     runs-on: ubuntu-latest
