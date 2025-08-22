@@ -1,0 +1,75 @@
+name: Stable Release & Back-merge
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [stable]
+
+jobs:
+  tag_release_and_merge:
+    if: github.event.pull_request.merged == true && (contains(github.event.pull_request.title, 'releases/') || contains(github.event.pull_request.head.ref, 'releases/'))
+    runs-on: ubuntu-latest
+
+    env:
+        GH_APP_ID: '229901'
+        GH_APP_INSTALLATION_ID: '36921303'
+        GH_APP_PRIVATE_KEY: ${{ secrets.KONG_APP_KEY_V2 }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate GitHub App Token
+        id: app-token
+        uses: tibdex/github-app-token@v2
+        with:
+          app_id: ${{ env.GH_APP_ID }}
+          private_key: ${{ env.GH_APP_PRIVATE_KEY }}
+
+      - name: Extract variables
+        id: vars
+        run: |
+          TITLE="${{ github.event.pull_request.title }}"
+          REF="${{ github.event.pull_request.head.ref }}"
+          BODY="${{ github.event.pull_request.body }}"
+          MERGE_SHA="${{ github.event.pull_request.merge_commit_sha }}"
+
+          TAG="$(echo "$REF" | sed -n 's#.*releases/\(.*\)#\1#p')"
+          if [ -z "$TAG" ]; then
+            TAG="$(echo "$TITLE" | sed -n 's#.*releases/\(.*\)#\1#p')"
+          fi
+          if [ -z "$TAG" ]; then TAG="$MERGE_SHA"; fi
+
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "merge_sha=$MERGE_SHA" >> $GITHUB_OUTPUT
+          echo "body<<'EOF'" >> $GITHUB_OUTPUT
+          echo "$BODY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create Tag
+        run: |
+          git tag "${{ steps.vars.outputs.tag }}" "${{ steps.vars.outputs.merge_sha }}"
+          git push origin "${{ steps.vars.outputs.tag }}"
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.vars.outputs.tag }}
+          target_commitish: ${{ steps.vars.outputs.merge_sha }}
+          body: ${{ steps.vars.outputs.body }}
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+
+      - name: Merge stable back to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin
+          git checkout main
+          git merge --no-ff origin/stable -m "Merge stable into main after release ${{ steps.vars.outputs.tag }}"
+          git push origin main
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
