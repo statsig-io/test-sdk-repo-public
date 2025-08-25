@@ -114,44 +114,59 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
 
-      - name: Back-merge single commit (cherry-pick) via PR
-        id: backmerge_one
+      - name: Create version-bump PR from main (merge back to main)
+        id: bump_only
         shell: bash
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}  # gh CLI 用
+            GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          set -euo pipefail
-
-          TAG="${{ steps.vars.outputs.tag }}"
-          SHA="${{ steps.vars.outputs.merge_sha }}"
-
-          git fetch origin --prune
-
-          BR="backmerge/one-$TAG"
-          git checkout -B "$BR" origin/main
-
-          PARENTS="$(git show -s --format=%P "$SHA" || true)"
-          if [[ "$PARENTS" == *" "* ]]; then
-            echo "Cherry-picking a merge commit: $SHA (using -m 1)"
-            git cherry-pick -m 1 "$SHA" || (echo "::error::Cherry-pick conflict. Resolve on branch $BR." && exit 1)
-          else
-            echo "Cherry-picking a normal commit: $SHA"
-            git cherry-pick "$SHA" || (echo "::error::Cherry-pick conflict. Resolve on branch $BR." && exit 1)
-          fi
-
-          git config user.name  "statsig-kong[bot]"
-          git config user.email "statsig-kong[bot]@users.noreply.github.com"
-          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
-          git push -u origin "$BR"
-
-          PR_URL="$(gh pr view "$BR" --json url --jq .url 2>/dev/null || true)"
-          if [ -z "$PR_URL" ]; then
-            PR_URL="$(gh pr create \
-              --base main \
-              --head "$BR" \
-              --title "Back-merge single commit $SHA -> main (after ${TAG})" \
-              --body  "Automated cherry-pick of $SHA from stable after ${TAG}.")"
-          fi
-          echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
-
-          gh pr merge "$BR" --merge --auto || echo "Auto-merge pending (checks/approvals needed or not permitted)."
+            set -euo pipefail
+        
+            TAG="${{ steps.vars.outputs.tag }}"    # e.g. v0.7.4-rc.2508202203
+            VERSION="${TAG#v}"                     # strip leading 'v' if present
+            REPO="${{ github.repository }}"
+            BR="bump/versions-${TAG}"
+        
+            echo "Tag: $TAG"
+            echo "Version: $VERSION"
+        
+            git fetch origin --prune
+            git checkout -B "$BR" origin/main
+        
+            git config user.name "statsig-kong[bot]"
+            git config user.email "statsig-kong[bot]@users.noreply.github.com"
+            git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+        
+            # --- bump package.json ---
+            if command -v jq >/dev/null 2>&1; then
+                echo "Updating package.json version to ${VERSION}"
+                tmp="$(mktemp)"
+                jq --arg v "$VERSION" '.version=$v' package.json > "$tmp" && mv "$tmp" package.json
+            else
+                echo "jq not found; cannot bump package.json"
+            fi
+        
+            # Commit (empty commit if nothing changed)
+            if git diff --quiet; then
+                git commit --allow-empty -m "chore: bump package.json version to ${VERSION} (no-op)"
+            else
+                git add package.json
+                git commit -m "chore: bump package.json version to ${VERSION}"
+            fi
+        
+            git push -u origin "$BR"
+        
+            # Open PR if not exists
+            PR_URL="$(gh pr view "$BR" --json url --jq .url 2>/dev/null || true)"
+            if [ -z "$PR_URL" ]; then
+                PR_URL="$(gh pr create \
+                --base main \
+                --head "$BR" \
+                --title "Bump package.json to ${VERSION} (post ${TAG})" \
+                --body "Automated version bump for package.json to **${VERSION}** on top of latest **main**.")"
+            fi
+            echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
+        
+            # Try auto merge
+            gh pr merge "$BR" --merge --auto || echo "Auto-merge pending (checks/approvals/branch protection)."
+        
