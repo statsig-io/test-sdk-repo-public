@@ -1,0 +1,172 @@
+name: Stable Release & Back-merge
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [stable]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g., v1.2.3)'
+        required: true
+      target_sha:
+        description: 'Commit SHA to tag (defaults to origin/stable)'
+        required: false
+      body:
+        description: 'Release notes body'
+        required: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  tag_release_and_merge:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.merged == true &&
+       (contains(github.event.pull_request.title, 'releases/') ||
+        contains(github.event.pull_request.head.ref, 'releases/')))
+    runs-on: ubuntu-latest
+
+    env:
+      GH_APP_ID: '229901'
+      GH_APP_INSTALLATION_ID: '36921303'
+      GH_APP_PRIVATE_KEY: ${{ secrets.KONG_APP_KEY_V2 }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Generate GitHub App Token
+        id: app-token
+        uses: tibdex/github-app-token@v2
+        with:
+          app_id: ${{ env.GH_APP_ID }}
+          private_key: ${{ env.GH_APP_PRIVATE_KEY }}
+
+      - name: Extract variables
+        id: vars
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TITLE=""
+            REF=""
+            BODY="${{ inputs.body || '' }}"
+            MERGE_SHA="${{ inputs.target_sha || '' }}"
+            if [ -z "$MERGE_SHA" ]; then
+              git fetch origin stable --depth=1
+              MERGE_SHA="$(git rev-parse origin/stable)"
+            fi
+            TAG="${{ inputs.tag }}"
+          else
+            TITLE="${{ github.event.pull_request.title }}"
+            REF="${{ github.event.pull_request.head.ref }}"
+            BODY="${{ github.event.pull_request.body || '' }}"
+            MERGE_SHA="${{ github.event.pull_request.merge_commit_sha }}"
+
+            TAG="$(echo "$REF" | sed -n 's#.*releases/\(.*\)#\1#p')"
+            if [ -z "$TAG" ]; then
+              TAG="$(echo "$TITLE" | sed -n 's#.*releases/\(.*\)#\1#p')"
+            fi
+            if [ -z "$TAG" ]; then TAG="$MERGE_SHA"; fi
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "merge_sha=$MERGE_SHA" >> "$GITHUB_OUTPUT"
+          {
+            echo "body<<EOF"
+            echo "$BODY"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Set up authenticated git remote (GitHub App)
+        run: |
+          git config user.name  "statsig-kong[bot]"
+          git config user.email "statsig-kong[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/${{ github.repository }}.git"
+
+      - name: Create Tag (idempotent)
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.vars.outputs.tag }}"
+          SHA="${{ steps.vars.outputs.merge_sha }}"
+
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "Tag $TAG already exists. Skipping tag creation."
+          else
+            git tag "$TAG" "$SHA"
+            git push origin "refs/tags/$TAG"
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.vars.outputs.tag }}
+          target_commitish: ${{ steps.vars.outputs.merge_sha }}
+          body: ${{ steps.vars.outputs.body }}
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+
+      - name: Create version-bump PR from main (merge back to main)
+        id: bump_only
+        shell: bash
+        env:
+            GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+            set -euo pipefail
+        
+            TAG="${{ steps.vars.outputs.tag }}"    # e.g. v0.7.4-rc.2508202203
+            VERSION="$TAG" 
+            REPO="${{ github.repository }}"
+            BR="bump/versions-${TAG}"
+        
+            echo "Tag: $TAG"
+            echo "Version: $VERSION"
+        
+            git fetch origin --prune
+            git checkout -B "$BR" origin/main
+        
+            git config user.name "statsig-kong[bot]"
+            git config user.email "statsig-kong[bot]@users.noreply.github.com"
+            git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+        
+            # --- bump package.json ---
+            if command -v jq >/dev/null 2>&1; then
+                echo "Updating package.json version to ${VERSION}"
+                tmp="$(mktemp)"
+                jq --arg v "$VERSION" '.version=$v' package.json > "$tmp" && mv "$tmp" package.json
+            else
+                echo "jq not found; cannot bump package.json"
+            fi
+        
+            # Commit (empty commit if nothing changed)
+            if git diff --quiet; then
+                git commit --allow-empty -m "chore: bump package.json version to ${VERSION} (no-op)"
+            else
+                git add package.json
+                git commit -m "chore: bump package.json version to ${VERSION}"
+            fi
+        
+            git push -u origin "$BR"
+        
+            # Open PR if not exists
+            PR_URL="$(gh pr view "$BR" --json url --jq .url 2>/dev/null || true)"
+            if [ -z "$PR_URL" ]; then
+                PR_URL="$(gh pr create \
+                --base main \
+                --head "$BR" \
+                --title "Bump package.json to ${VERSION} (post ${TAG})" \
+                --body "Automated version bump for package.json to **${VERSION}** on top of latest **main**.")"
+            fi
+            echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
+        
+            # Try auto merge
+            gh pr merge "$BR" --merge --auto || echo "Auto-merge pending (checks/approvals/branch protection)."
+        

@@ -1,0 +1,16 @@
+name: Debug Release Event
+
+on:
+  release:
+    types: [published, prereleased]
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print event info
+        run: |
+          echo "event_name=${{ github.event_name }}"
+          echo "event_action=${{ github.event.action }}"
+          echo "release_tag=${{ github.event.release.tag_name }}"
+          echo "is_prerelease=${{ github.event.release.prerelease }}"

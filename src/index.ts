@@ -3,7 +3,7 @@ type Foo = {
 };
 
 type Bar = Partial<Foo>;
-
+// add a new feature for testing
 type Boo = Foo["bar"];
 
 const MAP: Record<string, unknown> = {
