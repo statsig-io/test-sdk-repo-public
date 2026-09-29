@@ -11,14 +11,14 @@ on:
 jobs:
   echo:
     if: github.event_name == 'pull_request' || github.event.repository.private
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - name: "Echo"
         run: echo "Foo"
 
   run:
     if: startsWith(github.head_ref, 'releases/') || github.event_name == 'release'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - uses: statsig-io/statsig-publish-sdk-action@main
         with:
