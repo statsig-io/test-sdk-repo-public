@@ -20,7 +20,7 @@ jobs:
     if: startsWith(github.head_ref, 'releases/') || github.event_name == 'release'
     runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
-      - uses: statsig-io/statsig-publish-sdk-action@main
+      - uses: statsig-io/statsig-publish-sdk-action@b05d419d00630ef260b425355d6e5aae0cf895ca
         with:
           kong-private-key: ${{ secrets.KONG_GH_APP_PRIVATE_KEY }}
           npm-token: ${{ secrets.NPM_AUTOMATION_KEY }}
